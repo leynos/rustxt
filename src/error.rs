@@ -28,19 +28,11 @@ pub enum FetchError {
 }
 
 /// Errors that can occur when parsing rustdoc HTML.
+///
+/// Parsing itself degrades gracefully on malformed HTML, so the only
+/// failure mode is reading documentation files from disk.
 #[derive(Debug, thiserror::Error)]
 pub enum ParseError {
-    /// The HTML structure is invalid or unexpected.
-    #[error("Invalid HTML structure: {0}")]
-    InvalidHtml(String),
-
-    /// A required element was not found in the HTML.
-    #[error("Missing expected element: {selector}")]
-    MissingElement {
-        /// The CSS selector or element description that was not found.
-        selector: String,
-    },
-
     /// I/O error when reading HTML files.
     #[error("Failed to read file: {0}")]
     Io(#[from] io::Error),
@@ -49,22 +41,15 @@ pub enum ParseError {
 /// Errors that can occur during GPT-4.1 summarization.
 #[derive(Debug, thiserror::Error)]
 pub enum SummaryError {
-    /// OpenAI API returned an error.
+    /// `OpenAI` API returned an error.
     #[error("OpenAI API error: {0}")]
     ApiError(String),
-
-    /// Rate limited by OpenAI, should retry after specified duration.
-    #[error("Rate limited, retry after {retry_after_secs} seconds")]
-    RateLimited {
-        /// Number of seconds to wait before retrying.
-        retry_after_secs: u64,
-    },
 
     /// Missing API key in environment.
     #[error("OPENAI_API_KEY environment variable not set")]
     MissingApiKey,
 
-    /// OpenAI client error.
+    /// `OpenAI` client error.
     #[error("OpenAI client error: {0}")]
     Client(#[from] async_openai::error::OpenAIError),
 }

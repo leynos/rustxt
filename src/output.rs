@@ -42,8 +42,7 @@ impl CrateOutput {
     pub fn to_markdown(&self) -> String {
         let mut output = String::new();
 
-        // Header
-        output.push_str(&format!("# {} v{}\n\n", self.name, self.version));
+        self.push_header(&mut output);
 
         // Summary section (if available)
         if let Some(summary) = &self.summary {
@@ -62,14 +61,24 @@ impl CrateOutput {
     /// Formats the output as a compact version (summary only if available).
     #[must_use]
     pub fn to_compact_markdown(&self) -> String {
-        if let Some(summary) = &self.summary {
-            let mut output = String::new();
-            output.push_str(&format!("# {} v{}\n\n", self.name, self.version));
-            output.push_str(summary);
-            output
-        } else {
-            self.to_markdown()
-        }
+        self.summary.as_ref().map_or_else(
+            || self.to_markdown(),
+            |summary| {
+                let mut output = String::new();
+                self.push_header(&mut output);
+                output.push_str(summary);
+                output
+            },
+        )
+    }
+
+    /// Appends the `# name vversion` header.
+    fn push_header(&self, output: &mut String) {
+        output.push_str("# ");
+        output.push_str(&self.name);
+        output.push_str(" v");
+        output.push_str(&self.version);
+        output.push_str("\n\n");
     }
 }
 
@@ -101,8 +110,9 @@ pub fn write_compact_output(output: &CrateOutput) -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for output formatting with and without summaries.
     use super::*;
-    use crate::parser::{CrateIndex, CrateDocs};
+    use crate::parser::{CrateDocs, CrateIndex};
 
     fn make_test_docs() -> CrateDocs {
         CrateDocs {

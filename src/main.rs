@@ -13,7 +13,7 @@ use clap::Parser;
 use eyre::{Result, WrapErr};
 
 use crate::error::AppError;
-use crate::fetcher::{find_docs_root, DocsFetcher};
+use crate::fetcher::{DocsFetcher, find_docs_root};
 use crate::output::CrateOutput;
 use crate::parser::parse_crate_docs;
 use crate::summarizer::Summarizer;
@@ -38,8 +38,18 @@ struct Args {
     compact: bool,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
+    // Build the runtime explicitly rather than via `#[tokio::main]` so that
+    // runtime construction failures propagate as errors instead of panicking.
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .wrap_err("Failed to start the async runtime")?;
+    runtime.block_on(run())
+}
+
+/// Runs the application: fetch, parse, optionally summarize, then write.
+async fn run() -> Result<()> {
     let args = Args::parse();
 
     // Fetch documentation
@@ -79,10 +89,7 @@ async fn main() -> Result<()> {
                 CrateOutput::with_summary(&crate_docs, summary)
             }
             Err(crate::error::SummaryError::MissingApiKey) => {
-                eprintln!(
-                    "Warning: OPENAI_API_KEY not set, skipping summarization. \
-                     Use --no-summary to suppress this warning."
-                );
+                warn_missing_api_key().wrap_err("Failed to write warning to stderr")?;
                 CrateOutput::without_summary(&crate_docs)
             }
             Err(e) => return Err(AppError::from(e).into()),
@@ -97,4 +104,18 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Warns on stderr that summarization is skipped without an API key.
+fn warn_missing_api_key() -> std::io::Result<()> {
+    use std::io::Write;
+
+    let mut stderr = std::io::stderr().lock();
+    writeln!(
+        stderr,
+        concat!(
+            "Warning: OPENAI_API_KEY not set, skipping summarization. ",
+            "Use --no-summary to suppress this warning."
+        )
+    )
 }

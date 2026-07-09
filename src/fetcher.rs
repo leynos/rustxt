@@ -55,16 +55,16 @@ impl DocsFetcher {
         let version_str = version.unwrap_or("latest");
         let url = format!("https://docs.rs/crate/{crate_name}/{version_str}/download");
 
-        let response = self.client.get(&url).send().await?;
+        let initial_response = self.client.get(&url).send().await?;
 
-        if response.status() == reqwest::StatusCode::NOT_FOUND {
+        if initial_response.status() == reqwest::StatusCode::NOT_FOUND {
             return Err(FetchError::CrateNotFound {
                 name: crate_name.to_owned(),
                 version: version_str.to_owned(),
             });
         }
 
-        let response = response.error_for_status()?;
+        let response = initial_response.error_for_status()?;
 
         // Extract the actual version from the final URL (after redirects)
         let final_url = response.url().as_str();
@@ -133,23 +133,36 @@ async fn extract_zip(data: &[u8], target_dir: &std::path::Path) -> Result<(), Fe
             // Directory entry
             fs::create_dir_all(&target_path).await?;
         } else {
-            // File entry
-            if let Some(parent) = target_path.parent() {
-                fs::create_dir_all(parent).await?;
-            }
-
-            let mut entry_reader = zip.reader_with_entry(index).await?;
-            let mut file = fs::File::create(&target_path).await?;
-
-            let mut buf = vec![0u8; 8192];
-            loop {
-                let n = FuturesAsyncReadExt::read(&mut entry_reader, &mut buf).await?;
-                if n == 0 {
-                    break;
-                }
-                file.write_all(buf.get(..n).unwrap_or(&[])).await?;
-            }
+            write_zip_file_entry(&mut zip, index, &target_path).await?;
         }
+    }
+
+    Ok(())
+}
+
+/// Writes a single ZIP file entry to the target path, creating parents.
+async fn write_zip_file_entry<R>(
+    zip: &mut ZipFileReader<R>,
+    index: usize,
+    target_path: &std::path::Path,
+) -> Result<(), FetchError>
+where
+    R: futures_util::AsyncBufRead + futures_util::AsyncSeek + Unpin,
+{
+    if let Some(parent) = target_path.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+
+    let mut entry_reader = zip.reader_with_entry(index).await?;
+    let mut file = fs::File::create(target_path).await?;
+
+    let mut buf = vec![0u8; 8192];
+    loop {
+        let n = FuturesAsyncReadExt::read(&mut entry_reader, &mut buf).await?;
+        if n == 0 {
+            break;
+        }
+        file.write_all(buf.get(..n).unwrap_or(&[])).await?;
     }
 
     Ok(())
@@ -186,19 +199,20 @@ pub fn find_docs_root(temp_dir: &TempDir, crate_name: &str) -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for docs.rs URL version extraction.
     use super::*;
 
     #[test]
     fn test_extract_version_from_url() {
-        let url = "https://docs.rs/crate/clap/4.5.0/download";
+        let clap_url = "https://docs.rs/crate/clap/4.5.0/download";
         assert_eq!(
-            extract_version_from_url(url, "clap"),
+            extract_version_from_url(clap_url, "clap"),
             Some("4.5.0".to_owned())
         );
 
-        let url = "https://docs.rs/crate/tokio/1.0.0/download";
+        let tokio_url = "https://docs.rs/crate/tokio/1.0.0/download";
         assert_eq!(
-            extract_version_from_url(url, "tokio"),
+            extract_version_from_url(tokio_url, "tokio"),
             Some("1.0.0".to_owned())
         );
     }

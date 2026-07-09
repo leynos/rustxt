@@ -1,8 +1,5 @@
 //! Parser for rustdoc crate index pages.
 
-use std::path::Path;
-
-use crate::error::ParseError;
 use crate::parser::markdown::{extract_meta_description, html_to_markdown};
 
 /// Represents a parsed crate index page.
@@ -43,8 +40,6 @@ pub struct ItemEntry {
     pub description: String,
     /// Relative path to the item's HTML file.
     pub path: String,
-    /// The kind of item (struct, enum, trait, etc.).
-    pub kind: ItemKind,
 }
 
 /// The kind of documentation item.
@@ -66,10 +61,6 @@ pub enum ItemKind {
     Constant,
     /// A macro.
     Macro,
-    /// An attribute macro.
-    AttrMacro,
-    /// A derive macro.
-    DeriveMacro,
 }
 
 impl ItemKind {
@@ -85,82 +76,65 @@ impl ItemKind {
             Self::Type => "types",
             Self::Constant => "constants",
             Self::Macro => "macros",
-            Self::AttrMacro => "attributes",
-            Self::DeriveMacro => "derives",
+        }
+    }
+
+    /// Returns a human-readable label for detailed output headings.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Module => "Module",
+            Self::Struct => "Struct",
+            Self::Enum => "Enum",
+            Self::Trait => "Trait",
+            Self::Function => "Function",
+            Self::Type => "Type",
+            Self::Constant => "Constant",
+            Self::Macro => "Macro",
         }
     }
 }
 
 /// Parses a crate index HTML file.
 ///
-/// # Errors
-///
-/// Returns `ParseError` if the HTML structure is invalid or required
-/// elements are missing.
-pub fn parse_index(html: &str, crate_name: &str, version: &str) -> Result<CrateIndex, ParseError> {
-    let description = extract_meta_description(html).unwrap_or_default();
-    let docblock = extract_docblock_content(html);
-    let modules = extract_items(html, ItemKind::Module);
-    let structs = extract_items(html, ItemKind::Struct);
-    let enums = extract_items(html, ItemKind::Enum);
-    let traits = extract_items(html, ItemKind::Trait);
-    let functions = extract_items(html, ItemKind::Function);
-    let types = extract_items(html, ItemKind::Type);
-    let constants = extract_items(html, ItemKind::Constant);
-    let macros = extract_items(html, ItemKind::Macro);
-
-    Ok(CrateIndex {
+/// Malformed or missing sections degrade to empty results rather than
+/// failing, because rustdoc output varies between toolchain versions.
+#[must_use]
+pub fn parse_index(html: &str, crate_name: &str, version: &str) -> CrateIndex {
+    CrateIndex {
         name: crate_name.to_owned(),
         version: version.to_owned(),
-        description,
-        docblock,
-        modules,
-        structs,
-        enums,
-        traits,
-        functions,
-        types,
-        constants,
-        macros,
-    })
-}
-
-/// Parses a crate index from an HTML file path.
-///
-/// # Errors
-///
-/// Returns `ParseError` if the file cannot be read or parsed.
-pub fn parse_index_file(
-    path: &Path,
-    crate_name: &str,
-    version: &str,
-) -> Result<CrateIndex, ParseError> {
-    let html = std::fs::read_to_string(path)?;
-    parse_index(&html, crate_name, version)
+        description: extract_meta_description(html).unwrap_or_default(),
+        docblock: extract_docblock_content(html),
+        modules: extract_items(html, ItemKind::Module),
+        structs: extract_items(html, ItemKind::Struct),
+        enums: extract_items(html, ItemKind::Enum),
+        traits: extract_items(html, ItemKind::Trait),
+        functions: extract_items(html, ItemKind::Function),
+        types: extract_items(html, ItemKind::Type),
+        constants: extract_items(html, ItemKind::Constant),
+        macros: extract_items(html, ItemKind::Macro),
+    }
 }
 
 /// Extracts the main docblock content from the HTML.
 fn extract_docblock_content(html: &str) -> String {
     // Look for <details class="toggle top-doc" open>
-    let pattern = r#"class="toggle top-doc"#;
-    let Some(start) = html.find(pattern) else {
+    let Some(start) = html.find(r#"class="toggle top-doc"#) else {
         return String::new();
     };
 
-    let rest = match html.get(start..) {
-        Some(r) => r,
-        None => return String::new(),
+    let Some(rest) = html.get(start..) else {
+        return String::new();
     };
 
     // Find the docblock div inside
-    let docblock_pattern = r#"class="docblock"#;
-    let Some(docblock_start) = rest.find(docblock_pattern) else {
+    let Some(docblock_start) = rest.find(r#"class="docblock"#) else {
         return String::new();
     };
 
-    let docblock_rest = match rest.get(docblock_start..) {
-        Some(r) => r,
-        None => return String::new(),
+    let Some(docblock_rest) = rest.get(docblock_start..) else {
+        return String::new();
     };
 
     // Find the start of the div content (after the >)
@@ -168,100 +142,87 @@ fn extract_docblock_content(html: &str) -> String {
         return String::new();
     };
 
-    let content = match docblock_rest.get(content_start + 1..) {
-        Some(c) => c,
-        None => return String::new(),
+    let Some(content) = docblock_rest.get(content_start + 1..) else {
+        return String::new();
     };
 
     // Find the end of this docblock - look for </details> to get the whole block
     let content_end = content
         .find("</details>")
         .or_else(|| content.find("</div></details>"))
-        .unwrap_or(content.len().min(5000));
+        .unwrap_or_else(|| content.len().min(5000));
 
     let docblock_html = content.get(..content_end).unwrap_or("");
     html_to_markdown(docblock_html)
 }
 
-/// Extracts items of a given kind from the HTML using string-based parsing.
-fn extract_items(html: &str, kind: ItemKind) -> Vec<ItemEntry> {
-    let section_id = kind.section_id();
-    let mut items = Vec::new();
-
-    // Find the section start
+/// Locates the item-table HTML for a given section, if present.
+fn find_item_table(html: &str, section_id: &str) -> Option<String> {
     let section_pattern = format!(r#"id="{section_id}""#);
-    let Some(section_start) = html.find(&section_pattern) else {
-        return items;
-    };
+    let section_start = html.find(&section_pattern)?;
+    let rest = html.get(section_start..)?;
 
-    // Find the item-table after this section
-    let rest = match html.get(section_start..) {
-        Some(r) => r,
-        None => return items,
-    };
-
-    let Some(table_start) = rest.find(r#"class="item-table"#) else {
-        return items;
-    };
-
-    let table_rest = match rest.get(table_start..) {
-        Some(r) => r,
-        None => return items,
-    };
+    let table_start = rest.find(r#"class="item-table"#)?;
+    let table_rest = rest.get(table_start..)?;
 
     // Find the end of this section (next h2 or end of main content)
     let table_end = table_rest
-        .find(r#"<h2 id="#)
+        .find(r"<h2 id=")
         .or_else(|| table_rest.find("</section>"))
         .unwrap_or(table_rest.len());
 
-    let table_html = table_rest.get(..table_end).unwrap_or("");
+    table_rest.get(..table_end).map(ToOwned::to_owned)
+}
 
-    // Parse dt/dd pairs
+/// Extracts items of a given kind from the HTML using string-based parsing.
+fn extract_items(html: &str, kind: ItemKind) -> Vec<ItemEntry> {
+    let Some(table_html) = find_item_table(html, kind.section_id()) else {
+        return Vec::new();
+    };
+
+    let mut items = Vec::new();
     let mut pos = 0;
-    while let Some(dt_start) = table_html.get(pos..).and_then(|s| s.find("<dt")) {
-        let abs_dt_start = pos + dt_start;
-        let dt_rest = match table_html.get(abs_dt_start..) {
-            Some(r) => r,
-            None => break,
-        };
 
-        // Find the end of this dt
-        let Some(dt_end) = dt_rest.find("</dt>") else {
+    while let Some(found) = table_html.get(pos..).and_then(|s| s.find("<dt")) {
+        let abs_start = pos + found;
+        let Some(rest) = table_html.get(abs_start..) else {
             break;
         };
 
-        let dt_content = dt_rest.get(..dt_end).unwrap_or("");
+        // Find the end of this definition term
+        let Some(term_end) = rest.find("</dt>") else {
+            break;
+        };
+
+        let term_content = rest.get(..term_end).unwrap_or("");
+        let next_pos = abs_start + term_end + "</dt>".len();
 
         // Extract href and name from the anchor
-        if let Some((name, href)) = extract_link_from_dt(dt_content) {
-            // Look for the dd after this dt
-            let dd_start_pos = abs_dt_start + dt_end + 5; // 5 = len("</dt>")
-            let dd_rest = table_html.get(dd_start_pos..).unwrap_or("");
-
-            let description = if let Some(dd_start) = dd_rest.find("<dd>") {
-                let dd_content = dd_rest.get(dd_start + 4..).unwrap_or("");
-                if let Some(dd_end) = dd_content.find("</dd>") {
-                    strip_html_tags(dd_content.get(..dd_end).unwrap_or(""))
-                } else {
-                    String::new()
-                }
-            } else {
-                String::new()
-            };
-
+        if let Some((name, href)) = extract_link_from_dt(term_content) {
+            let after_term = table_html.get(next_pos..).unwrap_or("");
             items.push(ItemEntry {
                 name,
-                description,
+                description: extract_description(after_term),
                 path: href,
-                kind,
             });
         }
 
-        pos = abs_dt_start + dt_end + 5;
+        pos = next_pos;
     }
 
     items
+}
+
+/// Extracts the `<dd>` description that follows a definition term.
+fn extract_description(after_term: &str) -> String {
+    let Some(found) = after_term.find("<dd>") else {
+        return String::new();
+    };
+
+    let content = after_term.get(found + "<dd>".len()..).unwrap_or("");
+    content.find("</dd>").map_or_else(String::new, |end| {
+        strip_html_tags(content.get(..end).unwrap_or(""))
+    })
 }
 
 fn extract_link_from_dt(dt_html: &str) -> Option<(String, String)> {
@@ -313,6 +274,7 @@ fn strip_html_tags(html: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for index-page link and description extraction.
     use super::*;
 
     #[test]

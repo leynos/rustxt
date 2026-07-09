@@ -1,6 +1,8 @@
 # rustxt
 
-A command-line tool that fetches Rust crate documentation from [docs.rs](https://docs.rs) and converts it to clean, LLM-friendly Markdown. Optionally summarizes documentation using GPT-4.1 for quick comprehension.
+A command-line tool that fetches Rust crate documentation from
+[docs.rs](https://docs.rs) and converts it to clean, LLM-friendly Markdown.
+Optionally summarizes documentation using GPT-4.1 for quick comprehension.
 
 ## What it does
 
@@ -12,7 +14,8 @@ Instead of dumping a list of links, rustxt gives you **comprehensive, readable d
 - Parses key type details including method signatures
 - Optionally summarizes everything with GPT-4.1 for quick understanding
 
-Perfect for feeding crate documentation into LLMs, offline reading, or just getting a quick overview of an unfamiliar crate.
+Perfect for feeding crate documentation into LLMs, offline reading, or just
+getting a quick overview of an unfamiliar crate.
 
 ## Installation
 
@@ -84,7 +87,7 @@ shell completions, and automatic help generation.
 
 ## CLI Options
 
-```
+```text
 Usage: rustxt [OPTIONS] <CRATE_NAME>
 
 Arguments:
@@ -108,7 +111,8 @@ Options:
    - Public types (structs, enums, traits) with their documentation
    - Method signatures and descriptions for key types
 4. **Convert**: Transforms HTML docblocks to clean Markdown
-5. **Summarize** (optional): Sends the extracted documentation to GPT-4.1 for a concise, actionable summary
+5. **Summarize** (optional): Sends the extracted documentation to GPT-4.1
+   for a concise, actionable summary
 6. **Output**: Formats everything as Markdown to stdout
 
 ## Configuration
@@ -122,12 +126,14 @@ export OPENAI_API_KEY=sk-your-key-here
 ```
 
 If the API key is not set, rustxt will:
+
 - Work normally with `--no-summary`
 - Print a warning and fall back to raw documentation without `--no-summary`
 
 ### Model
 
-The tool uses `gpt-4.1` by default, which supports up to 1 million tokens of context - enough for even the largest crate documentation.
+The tool uses `gpt-4.1` by default, which supports up to 1 million tokens
+of context - enough for even the largest crate documentation.
 
 ## Use cases
 
@@ -170,7 +176,7 @@ cargo clippy
 
 ## Project structure
 
-```
+```text
 src/
   main.rs           # CLI entry point and orchestration
   error.rs          # Error types (FetchError, ParseError, SummaryError)

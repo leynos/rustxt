@@ -2,18 +2,18 @@
 
 use std::time::Duration;
 
+use async_openai::Client;
 use async_openai::config::OpenAIConfig;
 use async_openai::types::{
     ChatCompletionRequestMessage, ChatCompletionRequestSystemMessageArgs,
     ChatCompletionRequestUserMessageArgs, CreateChatCompletionRequestArgs,
 };
-use async_openai::Client;
 
 use crate::error::SummaryError;
 use crate::parser::CrateDocs;
 
 /// The system prompt for the summarizer.
-const SYSTEM_PROMPT: &str = r#"You are a technical documentation summarizer for Rust crates. Your task is to create concise, actionable summaries that help developers understand how to use a crate effectively.
+const SYSTEM_PROMPT: &str = r"You are a technical documentation summarizer for Rust crates. Your task is to create concise, actionable summaries that help developers understand how to use a crate effectively.
 
 Your summary should focus on:
 1. What the crate does (one clear sentence)
@@ -33,7 +33,7 @@ Do not include:
 - Version numbers or changelog information
 - Installation instructions (users know cargo add)
 - Verbose explanations of basic Rust concepts
-- Speculation about features not documented"#;
+- Speculation about features not documented";
 
 /// Client for summarizing crate documentation using GPT-4.1.
 pub struct Summarizer {
@@ -61,17 +61,6 @@ impl Summarizer {
         })
     }
 
-    /// Creates a new summarizer with a custom model name.
-    ///
-    /// # Errors
-    ///
-    /// Returns `SummaryError::MissingApiKey` if the API key is not set.
-    pub fn with_model(model: impl Into<String>) -> Result<Self, SummaryError> {
-        let mut summarizer = Self::from_env()?;
-        summarizer.model = model.into();
-        Ok(summarizer)
-    }
-
     /// Summarizes crate documentation.
     ///
     /// # Errors
@@ -84,7 +73,7 @@ impl Summarizer {
         self.call_with_retry(&user_prompt, 3).await
     }
 
-    /// Makes an API call with retry logic for rate limiting.
+    /// Makes an API call with exponential-backoff retry logic.
     async fn call_with_retry(
         &self,
         user_prompt: &str,
@@ -101,10 +90,6 @@ impl Summarizer {
 
             match self.make_request(user_prompt).await {
                 Ok(response) => return Ok(response),
-                Err(SummaryError::RateLimited { retry_after_secs }) => {
-                    delay = Duration::from_secs(retry_after_secs);
-                    last_error = Some(SummaryError::RateLimited { retry_after_secs });
-                }
                 Err(e) => {
                     last_error = Some(e);
                 }
@@ -167,6 +152,7 @@ Provide your summary in Markdown format."#
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for prompt formatting.
     use super::*;
 
     #[test]

@@ -74,12 +74,6 @@ pub fn html_to_markdown(html: &str) -> String {
     cleanup_markdown(&result)
 }
 
-/// Extracts text content from a docblock HTML element.
-#[must_use]
-pub fn extract_docblock(html: &str) -> String {
-    html_to_markdown(html)
-}
-
 /// Extracts the description from a `<meta name="description">` tag.
 #[must_use]
 pub fn extract_meta_description(html: &str) -> Option<String> {
@@ -88,17 +82,7 @@ pub fn extract_meta_description(html: &str) -> Option<String> {
     let content_start = start + pattern.len();
     let rest = html.get(content_start..)?;
     let end = rest.find('"')?;
-    rest.get(..end).map(|s| decode_html_entities(s))
-}
-
-/// Extracts the page title from the `<title>` tag.
-#[must_use]
-pub fn extract_title(html: &str) -> Option<String> {
-    let start = html.find("<title>")?;
-    let title_start = start + "<title>".len();
-    let rest = html.get(title_start..)?;
-    let end = rest.find("</title>")?;
-    rest.get(..end).map(|s| decode_html_entities(s))
+    rest.get(..end).map(decode_html_entities)
 }
 
 /// Removes content within a specific tag, including the tags themselves.
@@ -138,50 +122,56 @@ fn convert_links(html: &str) -> String {
         result.push_str(remaining.get(..start).unwrap_or(""));
 
         let after_a = remaining.get(start..).unwrap_or("");
-
-        // Find href
-        let href = if let Some(href_start) = after_a.find("href=\"") {
-            let href_content = after_a.get(href_start + 6..).unwrap_or("");
-            if let Some(href_end) = href_content.find('"') {
-                href_content.get(..href_end).unwrap_or("")
-            } else {
-                ""
-            }
-        } else {
-            ""
-        };
-
-        // Find link text
-        if let Some(text_start) = after_a.find('>') {
-            let after_text = after_a.get(text_start + 1..).unwrap_or("");
-            if let Some(text_end) = after_text.find("</a>") {
-                let link_text = strip_html_tags(after_text.get(..text_end).unwrap_or(""));
-
-                if href.is_empty() {
-                    result.push_str(&link_text);
-                } else {
-                    result.push('[');
-                    result.push_str(&link_text);
-                    result.push_str("](");
-                    result.push_str(href);
-                    result.push(')');
-                }
-
-                remaining = after_text.get(text_end + 4..).unwrap_or("");
-                continue;
-            }
-        }
-
-        // Fallback: skip the tag
-        if let Some(end) = after_a.find('>') {
-            remaining = after_a.get(end + 1..).unwrap_or("");
-        } else {
-            break;
-        }
+        remaining = convert_single_link(after_a, &mut result);
     }
 
     result.push_str(remaining);
     result
+}
+
+/// Converts one anchor element, appending Markdown to `result`.
+///
+/// Returns the remaining HTML after the anchor. When the anchor is
+/// malformed, the tag is skipped and its text is left in place.
+fn convert_single_link<'a>(after_a: &'a str, result: &mut String) -> &'a str {
+    let href = extract_href(after_a).unwrap_or("");
+
+    // Find link text
+    if let Some(text_start) = after_a.find('>') {
+        let after_text = after_a.get(text_start + 1..).unwrap_or("");
+        if let Some(text_end) = after_text.find("</a>") {
+            let link_text = strip_html_tags(after_text.get(..text_end).unwrap_or(""));
+            push_markdown_link(result, &link_text, href);
+            return after_text.get(text_end + 4..).unwrap_or("");
+        }
+    }
+
+    // Fallback: skip the tag
+    after_a
+        .find('>')
+        .and_then(|end| after_a.get(end + 1..))
+        .unwrap_or("")
+}
+
+/// Extracts the `href` attribute value from an anchor tag.
+fn extract_href(anchor_html: &str) -> Option<&str> {
+    let href_start = anchor_html.find("href=\"")?;
+    let href_content = anchor_html.get(href_start + 6..)?;
+    let href_end = href_content.find('"')?;
+    href_content.get(..href_end)
+}
+
+/// Appends a Markdown link, or bare text when the target is empty.
+fn push_markdown_link(result: &mut String, link_text: &str, href: &str) {
+    if href.is_empty() {
+        result.push_str(link_text);
+    } else {
+        result.push('[');
+        result.push_str(link_text);
+        result.push_str("](");
+        result.push_str(href);
+        result.push(')');
+    }
 }
 
 /// Strips all HTML tags from text.
@@ -243,6 +233,7 @@ fn cleanup_markdown(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for HTML-to-Markdown conversion.
     use super::*;
 
     #[test]
@@ -261,7 +252,8 @@ mod tests {
 
     #[test]
     fn test_extract_meta_description() {
-        let html = r#"<html><head><meta name="description" content="Test description"></head></html>"#;
+        let html =
+            r#"<html><head><meta name="description" content="Test description"></head></html>"#;
         let desc = extract_meta_description(html);
         assert_eq!(desc, Some("Test description".to_owned()));
     }

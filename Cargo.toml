@@ -6,7 +6,7 @@ license = "ISC"
 description = "Fetch Rust crate documentation from docs.rs and convert to LLM-friendly Markdown"
 
 [dependencies]
-async-openai = "0.26"
+async-openai = "0.41"
 async_zip = { version = "0.0.17", features = ["tokio", "deflate", "bzip2"] }
 bytes = "1.9"
 cap-std = "4"

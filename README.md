@@ -214,6 +214,20 @@ ISC
 
 Contributions welcome! Please feel free to submit issues and pull requests.
 
+Run `make spelling` to enforce en-GB-oxendict prose spelling. The target checks
+the generated `typos.toml` for drift, runs the consumer phrase checker, and
+then applies the pinned Typos release to tracked Markdown files. The generated
+configuration combines the shared estate dictionary with the narrow repository
+policy in `typos.local.toml`; edit the local policy rather than generated
+entries. Regenerate the configuration with the builder pin from the Makefile:
+
+```sh
+TYPOS_CONFIG_BUILDER_COMMIT=d6da92f02240a79a945c835f69bdd08a888da1d0
+uvx --python 3.14 \
+  --from "git+https://github.com/leynos/typos-config-builder.git@${TYPOS_CONFIG_BUILDER_COMMIT}" \
+  typos-config-builder
+```
+
 ---
 
 Built with Rust. Documentation powered by [docs.rs](https://docs.rs).

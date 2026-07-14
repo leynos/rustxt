@@ -81,14 +81,14 @@ jobs:
             ${{ runner.os }}-cargo-
       - name: Build release binary
         run: cross +stable build --release --target ${{ matrix.target }}
-      - name: Prepare artifact
+      - name: Prepare artefact
         run: |
           mkdir -p artifacts/${{ matrix.os }}-${{ matrix.arch }}
           cp target/${{ matrix.target }}/release/${{ env.REPO_NAME }}${{ matrix.ext }} \
             artifacts/${{ matrix.os }}-${{ matrix.arch }}/${{ env.REPO_NAME }}-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}
           sha256sum artifacts/${{ matrix.os }}-${{ matrix.arch }}/${{ env.REPO_NAME }}-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }} > \
             artifacts/${{ matrix.os }}-${{ matrix.arch }}/${{ env.REPO_NAME }}-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}.sha256
-      - name: Upload release artifact
+      - name: Upload release artefact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.REPO_NAME }}-${{ matrix.os }}-${{ matrix.arch }}
@@ -113,4 +113,3 @@ jobs:
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

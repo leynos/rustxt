@@ -27,6 +27,12 @@ jobs:
             **/*.md
             !**/target/**
             !**/dist/**
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c5680ec91f7b9b91406fab4ded5d45245abf7b67
+        with:
+          python-version: '3.14'
+      - name: Spelling
+        run: make spelling
       - name: Cache whitaker-installer
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:

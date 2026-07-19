@@ -1,5 +1,8 @@
 # rustxt
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](
+https://deepwiki.com/leynos/rustxt)
+
 A command-line tool that fetches Rust crate documentation from
 [docs.rs](https://docs.rs) and converts it to clean, LLM-friendly Markdown.
 Optionally summarizes documentation using GPT-4.1 for quick comprehension.

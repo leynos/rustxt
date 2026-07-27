@@ -9,7 +9,8 @@ Optionally summarizes documentation using GPT-4.1 for quick comprehension.
 
 ## What it does
 
-Instead of dumping a list of links, rustxt gives you **comprehensive, readable documentation**:
+Instead of dumping a list of links, rustxt gives you **comprehensive, readable
+documentation**:
 
 - Downloads the full rustdoc HTML archive from docs.rs
 - Converts HTML to lightweight Markdown
@@ -106,7 +107,8 @@ Options:
 
 ## How it works
 
-1. **Fetch**: Downloads the rustdoc ZIP archive from `docs.rs/crate/{name}/{version}/download`
+1. **Fetch**: Downloads the rustdoc ZIP archive from
+   `docs.rs/crate/{name}/{version}/download`
 2. **Extract**: Unpacks the BZIP2-compressed archive to a temporary directory
 3. **Parse**: Walks through the HTML files, extracting:
    - Crate description from meta tags
@@ -135,8 +137,8 @@ If the API key is not set, rustxt will:
 
 ### Model
 
-The tool uses `gpt-4.1` by default, which supports up to 1 million tokens
-of context - enough for even the largest crate documentation.
+The tool uses `gpt-4.1` by default, which supports up to 1 million tokens of
+context - enough for even the largest crate documentation.
 
 ## Use cases
 
@@ -231,6 +233,6 @@ uvx --python 3.14 \
   typos-config-builder
 ```
 
----
+______________________________________________________________________
 
 Built with Rust. Documentation powered by [docs.rs](https://docs.rs).

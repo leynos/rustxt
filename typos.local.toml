@@ -11,8 +11,10 @@ accepted = []
 [words.corrections]
 
 [patterns]
-# Preserve the title of the cited Microsoft Learn page.
-ignore = ["Azure Architecture\\s+Center\\s+\\|\\s+Microsoft Learn"]
+ignore = [
+  # Inline code spans are masked; the shared dictionary does not mask them yet.
+  '`[^`\n]+`',
+]
 
 [files]
 exclude = []

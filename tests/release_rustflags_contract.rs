@@ -20,11 +20,17 @@ fn release_build_step() -> Vec<&'static str> {
     else {
         return Vec::new();
     };
-    let start = lines[..at]
+    let start = lines
         .iter()
+        .take(at)
         .rposition(|line| line.trim_start().starts_with("- name:"))
         .unwrap_or(0);
-    lines[start..=at].to_vec()
+    lines
+        .iter()
+        .skip(start)
+        .take(at - start + 1)
+        .copied()
+        .collect()
 }
 
 /// Scenario: the release workflow's build step.
@@ -38,18 +44,16 @@ fn the_release_build_assigns_rustflags_without_the_standard_flags() {
         !step.is_empty(),
         "the release workflow no longer builds with `build --release`"
     );
-    let assigned: Vec<&&str> = step
+    let assigned: Vec<&str> = step
         .iter()
+        .copied()
         .filter(|line| line.trim_start().starts_with("RUSTFLAGS:"))
         .collect();
-    assert_eq!(
-        assigned.len(),
-        1,
-        "the release build must assign RUSTFLAGS once: {step:?}"
-    );
+    let [value] = assigned.as_slice() else {
+        panic!("the release build must assign RUSTFLAGS once: {step:?}");
+    };
     assert!(
-        !assigned[0].contains("-Zthreads") && !assigned[0].contains("mold"),
-        "the release takes a standard flag: {}",
-        assigned[0]
+        !value.contains("-Zthreads") && !value.contains("mold"),
+        "the release takes a standard flag: {value}"
     );
 }

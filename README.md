@@ -34,8 +34,11 @@ cargo build --release
 The binary will be at `target/release/rustxt`.
 
 On Linux the repository's `.cargo/config.toml` links with `mold`, so install
-`mold` and `clang` first. To build with the platform linker instead, assign an
-empty `RUSTFLAGS`, which displaces the configuration's flags:
+`mold` first. The `-fuse-ld=mold` flag reaches `mold` through rustc's default
+`cc` driver, which must be GCC 12.1 or newer or clang. If `cc` is an older GCC,
+install `clang` and select it, as the [users' guide](docs/users-guide.md)
+shows. To build with the platform linker instead, assign an empty `RUSTFLAGS`,
+which displaces the configuration's flags:
 
 ```bash
 RUSTFLAGS="" cargo build --release
@@ -44,8 +47,8 @@ RUSTFLAGS="" cargo build --release
 ### Requirements
 
 - Rust 2024 edition (nightly)
-- On Linux, `mold` and `clang` for the default build, or an empty `RUSTFLAGS`
-  as above
+- On Linux, `mold` and a `cc` driver of GCC 12.1 or newer (or clang) for the
+  default build, or an empty `RUSTFLAGS` as above
 - For summarization: OpenAI API key with GPT-4.1 access
 
 ## Usage

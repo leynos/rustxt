@@ -18,6 +18,7 @@ jobs:
       - name: Setup Rust
         uses: leynos/shared-actions/.github/actions/setup-rust@ff1dd759dfffc0db3459e30e833f52437ee62b57
         with:
+          install-mold: 'true'
           expect-cache: any
       - name: Install mdtablefix
         # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
@@ -43,6 +44,11 @@ jobs:
       - name: Lint
         run: make lint
       - name: Test and Measure Coverage
+        env:
+          # One of the two exclusions from the build standard: a coverage build is a
+          # measurement, so it takes neither the parallel frontend nor the mold linker.
+          # Assigning RUSTFLAGS displaces every `rustflags` table in .cargo/config.toml.
+          RUSTFLAGS: -D warnings
         uses: leynos/shared-actions/.github/actions/generate-coverage@32c8ea649ea44d40119f348ad48861212532061f
         with:
           output-path: lcov.info

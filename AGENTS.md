@@ -316,10 +316,6 @@ The following tooling is available in this environment:
 
 <!-- typos-config-builder:agents-md:end -->
 
-- Quoted APIs and identifiers retain upstream spelling. Put them in backticks
-  or fenced code blocks, which the spelling gate ignores, rather than adding
-  word-level exceptions.
-
 ## Key Takeaway
 
 These practices help maintain a high-quality codebase and facilitate

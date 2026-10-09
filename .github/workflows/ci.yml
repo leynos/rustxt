@@ -16,14 +16,14 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@122fc392099957575259c97f0599bc3f0f095882
+        uses: leynos/shared-actions/.github/actions/setup-rust@5bc2b2611f5921ef2c56e4ee3fde2b879a319361
         with:
           install-mold: 'true'
           expect-cache: any
       - name: Install mdtablefix
         # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
         # first release with `--check` and `--git`.
-        uses: leynos/shared-actions/.github/actions/install-mdtablefix@2f47859bcf82ae8b5bc10b457683fbd589ca2e41
+        uses: leynos/shared-actions/.github/actions/install-mdtablefix@5bc2b2611f5921ef2c56e4ee3fde2b879a319361
         with:
           version: "0.6.1"
 
@@ -40,7 +40,7 @@ jobs:
       - name: Spelling
         run: make spelling
       - name: Install the Whitaker Dylint suite
-        uses: leynos/shared-actions/.github/actions/install-whitaker@7d751eded578e48dacf43ab173d5820e6437c474
+        uses: leynos/shared-actions/.github/actions/install-whitaker@5bc2b2611f5921ef2c56e4ee3fde2b879a319361
       - name: Lint
         run: make lint
       - name: Test and Measure Coverage

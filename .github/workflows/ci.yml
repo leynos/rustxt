@@ -40,7 +40,7 @@ jobs:
       - name: Spelling
         run: make spelling
       - name: Install the Whitaker Dylint suite
-        uses: leynos/shared-actions/.github/actions/install-whitaker@7d751eded578e48dacf43ab173d5820e6437c474
+        uses: leynos/shared-actions/.github/actions/install-whitaker@122fc392099957575259c97f0599bc3f0f095882
       - name: Lint
         run: make lint
       - name: Test and Measure Coverage

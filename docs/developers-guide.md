@@ -67,11 +67,15 @@ from the TLS stack that `reqwest` pulls in) while the suite passes under LLVM.
 The earlier measurement on `nightly-2025-12-15` (2026-10-02) failed the same
 way. Revisit on the next toolchain bump: measure the whole suite under the
 backend, with CI's environment, and adopt it if every test passes. The
-measurement is
-`cargo +<pin> test --all-targets --all-features -Zcodegen-backend` with
-`--config 'unstable.codegen-backend=true'` and
-`--config 'profile.dev.codegen-backend="cranelift"'`, under the gate's own
-`RUSTFLAGS`, followed by the same with `--doc`.
+measurement is two commands, each run under the gate's own `RUSTFLAGS`
+(`-D warnings -Zthreads=8 -Clink-arg=-fuse-ld=mold`) and each given
+`-Zcodegen-backend`, `--config 'unstable.codegen-backend=true'` and
+`--config 'profile.dev.codegen-backend="cranelift"'`:
+
+```sh
+cargo +<pin> test --all-targets --all-features --no-fail-fast
+cargo +<pin> test --doc --all-features
+```
 
 ## The spelling gate
 

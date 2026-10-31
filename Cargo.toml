@@ -89,3 +89,10 @@ missing_crate_level_docs = "deny"
 
 [dev-dependencies]
 rstest = "0.28.0"
+
+# The development footprint (concordat rule `rust-dev-build-footprint`): no
+# incremental state and no debug information in default development builds.
+# The test profile inherits both.
+[profile.dev]
+incremental = false
+debug = 0

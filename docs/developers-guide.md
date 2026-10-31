@@ -36,14 +36,42 @@ workflow edit fails there. The decision is recorded in
 direct `cargo test` needs GNU make on the `PATH`. It fails when `make` is
 missing instead of skipping, so a missing tool cannot read as a pass.
 
+The Whitaker route is the third exclusion. `make lint` runs `lint-clippy`
+(which takes the standard's flags) and `lint-whitaker`, whose installer-managed
+toolchain must not inherit them: the route clears inherited `RUSTFLAGS`,
+encoded flags, backend, target and linker settings through
+`WHITAKER_CLEAN_ENV`, and passes the warning policy through `DYLINT_RUSTFLAGS`.
+It neither assigns `RUSTFLAGS` nor selects LLVM, so Cargo's repository defaults
+stay in force. `tests/build_standard_contract.rs` reads `make -n lint-whitaker`
+for exactly that.
+
+### The development footprint
+
+The Concordat `rust-dev-build-footprint` rule keeps default development builds
+small. `Cargo.toml` sets `incremental = false` and `debug = 0` in
+`[profile.dev]`, which the test profile inherits, and `.cargo/config.toml` sets
+`[unstable] embed-metadata = false`, the native Cargo setting for dated
+nightlies from 2026-07-31. The trade-off is that a debugger sees no symbols or
+line tables in a default development build and every rebuild recompiles whole
+crates. To debug, run with `CARGO_PROFILE_DEV_DEBUG=true`; to rebuild
+incrementally, set `CARGO_INCREMENTAL=1`. `tests/build_footprint_contract.rs`
+holds all three settings.
+
 ### Cranelift
 
 Exception: Cranelift is not the development-profile backend. The estate adopts
 it only where the full suite passes under it, and that is not shown here on the
-pinned `nightly-2025-12-15` (measured 2026-10-02): the link step fails
-(`linking with cc failed`) while the suite passes under LLVM. Revisit on the
-next toolchain bump: measure the whole suite under the backend, with CI's
-environment, and adopt it if every test passes.
+pinned `nightly-2026-10-30` (measured 2026-10-31): the link step fails
+(`linking with cc failed`, with `mold` reporting undefined `aws_lc_*` symbols
+from the TLS stack that `reqwest` pulls in) while the suite passes under LLVM.
+The earlier measurement on `nightly-2025-12-15` (2026-10-02) failed the same
+way. Revisit on the next toolchain bump: measure the whole suite under the
+backend, with CI's environment, and adopt it if every test passes. The
+measurement is
+`cargo +<pin> test --all-targets --all-features -Zcodegen-backend` with
+`--config 'unstable.codegen-backend=true'` and
+`--config 'profile.dev.codegen-backend="cranelift"'`, under the gate's own
+`RUSTFLAGS`, followed by the same with `--doc`.
 
 ## The spelling gate
 

@@ -47,7 +47,7 @@ use ci_steps::workflow_problems;
 use config::{CONFIG, Pin, Problems, TOOLCHAIN, config_problems};
 use coverage_env::coverage_recipe_problems;
 use development::development_problems;
-use make::{Host, held_out_problems, held_out_target_count};
+use make::{Host, Target, held_out_problems, held_out_target_count};
 use process::real_make;
 
 /// Turns a list of complaints into a test result.
@@ -109,4 +109,62 @@ fn coverage_and_release_take_neither_flag() -> Result<(), String> {
 #[test]
 fn the_coverage_recipe_assigns_its_recorded_environment() -> Result<(), String> {
     none_of(&coverage_recipe_problems(real_make)?)
+}
+
+/// Whitaker builds with its own installer-managed toolchain, so its route clears every inherited flag,
+/// backend and linker setting instead of restating the standard, and passes the warning policy through
+/// Dylint's own input. It neither assigns `RUSTFLAGS` nor selects LLVM, so Cargo's repository defaults
+/// stay in force for the checked crate.
+#[test]
+fn whitaker_clears_inherited_settings_and_takes_the_repository_defaults() -> Result<(), String> {
+    let recipe = real_make(Target("lint-whitaker"), Host::Linux)?;
+    let whitaker = recipe
+        .lines()
+        .find(|line| line.contains(" --all -- "))
+        .ok_or("`make lint-whitaker` must invoke the Whitaker workspace check")?;
+    let mut problems = Problems::new();
+    for setting in [
+        "RUSTFLAGS",
+        "CARGO_ENCODED_RUSTFLAGS",
+        "CARGO_PROFILE_DEV_CODEGEN_BACKEND",
+        "CARGO_BUILD_TARGET",
+        "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER",
+        "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS",
+        "CFLAGS",
+        "LDFLAGS",
+    ] {
+        if !whitaker.contains(&format!("-u {setting} ")) {
+            problems.push(format!(
+                "Whitaker must remove inherited {setting}: {whitaker}"
+            ));
+        }
+    }
+    if whitaker.contains(" RUSTFLAGS=\"") || whitaker.contains("=llvm") {
+        problems.push(format!(
+            "Whitaker must not replace Cargo defaults with assigned flags or LLVM: {whitaker}"
+        ));
+    }
+    if !whitaker.contains("DYLINT_RUSTFLAGS=\"-D warnings") {
+        problems.push(format!(
+            "warnings must reach the check through Dylint's input: {whitaker}"
+        ));
+    }
+    if !whitaker.ends_with("--all -- --all-targets --all-features") {
+        problems.push(format!(
+            "the check must keep all targets and features: {whitaker}"
+        ));
+    }
+    none_of(&problems)
+}
+
+/// `make lint` runs both halves, so isolating Whitaker cannot drop either from the gate.
+#[test]
+fn lint_runs_clippy_and_whitaker() -> Result<(), String> {
+    let recipe = real_make(Target("lint"), Host::Linux)?;
+    for tool in ["clippy", "--all -- "] {
+        if !recipe.contains(tool) {
+            return Err(format!("`make lint` no longer runs `{tool}`: {recipe}"));
+        }
+    }
+    Ok(())
 }

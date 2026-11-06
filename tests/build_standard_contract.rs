@@ -111,11 +111,10 @@ fn the_coverage_recipe_assigns_its_recorded_environment() -> Result<(), String> 
     none_of(&coverage_recipe_problems(real_make)?)
 }
 
-/// The inherited settings the Whitaker route must clear, so its installer-managed toolchain builds with
-/// Cargo's repository defaults: flags, encoded flags, backend, target, the linker and rustflags of each
-/// supported host's target, and the C compiler's flags.
-const WHITAKER_CLEARED: [&str; 12] = [
-    "RUSTFLAGS",
+/// The inherited settings the Whitaker route must clear, so its installer-managed toolchain takes none
+/// of the caller's: encoded flags, backend, target, the linker and rustflags of each supported host's
+/// target, and the C compiler's flags. `RUSTFLAGS` itself is assigned rather than cleared.
+const WHITAKER_CLEARED: [&str; 11] = [
     "CARGO_ENCODED_RUSTFLAGS",
     "CARGO_PROFILE_DEV_CODEGEN_BACKEND",
     "CARGO_BUILD_TARGET",
@@ -131,9 +130,10 @@ const WHITAKER_CLEARED: [&str; 12] = [
 
 /// Returns the complaints about the `make -n lint-whitaker` output of one host. The command is the line
 /// whose program the shell executes is Whitaker (after assignments and the `env` wrapper), so a line that
-/// only prints its name does not count; it must clear every inherited setting, assign no flag, backend or
-/// profile in any spelling, pass the warning policy through Dylint's input and keep the target and
-/// feature selections as words, since other Cargo options may follow them.
+/// only prints its name does not count; it must clear every inherited setting, assign `RUSTFLAGS` the
+/// warning policy alone (an unset `RUSTFLAGS` would leave Cargo reading the configuration's flags),
+/// assign no encoded flags or backend, pass the warning policy through Dylint's input and keep the
+/// target and feature selections as words, since other Cargo options may follow them.
 fn whitaker_route_problems(recipe: &str, host: &str) -> Problems {
     let Some(whitaker) = recipe.lines().find(|line| {
         shell::executed_program(line).is_some_and(|word| shell::names_program(word, "whitaker"))
@@ -150,15 +150,28 @@ fn whitaker_route_problems(recipe: &str, host: &str) -> Problems {
             ));
         }
     }
-    // Any assignment form replaces the defaults: empty, bare, single or double quoted.
-    let assigns_flags = whitaker.split_whitespace().any(|word| {
-        word.starts_with("RUSTFLAGS=")
-            || word.starts_with("CARGO_ENCODED_RUSTFLAGS=")
+    // `RUSTFLAGS` must be assigned exactly once, to the warning policy alone, so that no flag of the
+    // configuration or the caller survives; any other flag source or backend assignment is refused.
+    let assigned = whitaker
+        .split_whitespace()
+        .filter(|word| word.starts_with("RUSTFLAGS="))
+        .count();
+    let value = whitaker
+        .split_once(" RUSTFLAGS=\"")
+        .and_then(|(_, rest)| rest.split_once('"'))
+        .map(|(value, _)| value);
+    if assigned != 1 || value != Some("-D warnings") {
+        problems.push(format!(
+            "Whitaker must assign RUSTFLAGS the warning policy alone: {whitaker}"
+        ));
+    }
+    let assigns_other = whitaker.split_whitespace().any(|word| {
+        word.starts_with("CARGO_ENCODED_RUSTFLAGS=")
             || (word.starts_with("CARGO_PROFILE_") && word.contains("_CODEGEN_BACKEND="))
     });
-    if assigns_flags || whitaker.contains("=llvm") {
+    if assigns_other || whitaker.contains("=llvm") {
         problems.push(format!(
-            "Whitaker must not replace Cargo defaults with assigned flags or LLVM: {whitaker}"
+            "Whitaker must not assign encoded flags or a backend: {whitaker}"
         ));
     }
     if !whitaker.contains("DYLINT_RUSTFLAGS=\"-D warnings") {
@@ -200,8 +213,8 @@ fn lint_problems(recipe: &str) -> Problems {
 
 /// Whitaker builds with its own installer-managed toolchain, so its route clears every inherited flag,
 /// backend and linker setting instead of restating the standard, and passes the warning policy through
-/// Dylint's own input. It neither assigns `RUSTFLAGS` nor selects LLVM, so Cargo's repository defaults
-/// stay in force for the checked crate. The route runs on Linux and macOS hosts, so both are read and each
+/// Dylint's own input. It assigns `RUSTFLAGS` the warning policy alone, so none of the repository's
+/// development flags reach the checked crate, and selects no backend. The route runs on Linux and macOS hosts, so both are read and each
 /// clears its own target settings.
 #[test]
 fn whitaker_clears_inherited_settings_and_takes_the_repository_defaults() -> Result<(), String> {
@@ -220,7 +233,7 @@ fn lint_runs_clippy_and_whitaker() -> Result<(), String> {
 }
 
 /// A compliant `lint-whitaker` line, as `make -n` prints it.
-const WHITAKER_OK: &str = "env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS -u CARGO_PROFILE_DEV_CODEGEN_BACKEND -u CARGO_BUILD_TARGET -u CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER -u CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS -u CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER -u CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS -u CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER -u CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS -u CFLAGS -u LDFLAGS DYLINT_RUSTFLAGS=\"-D warnings\" whitaker --all -- --all-targets --all-features";
+const WHITAKER_OK: &str = "env -u CARGO_ENCODED_RUSTFLAGS -u CARGO_PROFILE_DEV_CODEGEN_BACKEND -u CARGO_BUILD_TARGET -u CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER -u CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS -u CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER -u CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS -u CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER -u CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS -u CFLAGS -u LDFLAGS RUSTFLAGS=\"-D warnings\" DYLINT_RUSTFLAGS=\"-D warnings\" whitaker --all -- --all-targets --all-features";
 
 /// The readers judge canned recipes, so the checks above cannot pass by finding nothing: the compliant
 /// line passes, with and without a trailing Cargo option, and each broken variant is refused by name.
@@ -231,28 +244,38 @@ fn the_whitaker_and_lint_readers_refuse_each_broken_recipe() -> Result<(), Strin
         &format!("{WHITAKER_OK} --locked"),
         "Linux",
     ))?;
-    let broken: [(&str, String); 7] = [
+    let broken: [(&str, String); 8] = [
         (
             "echoed",
             WHITAKER_OK.replace("whitaker --all", "echo whitaker --all"),
         ),
         (
             "empty RUSTFLAGS",
-            WHITAKER_OK.replace("DYLINT", "RUSTFLAGS= DYLINT"),
+            WHITAKER_OK.replace("RUSTFLAGS=\"-D warnings\" DYLINT", "RUSTFLAGS= DYLINT"),
         ),
         (
-            "single quoted",
-            WHITAKER_OK.replace("DYLINT", "RUSTFLAGS='-Zthreads=8' DYLINT"),
+            "extra flag",
+            WHITAKER_OK.replace(
+                "RUSTFLAGS=\"-D warnings\" DYLINT",
+                "RUSTFLAGS=\"-D warnings -Zthreads=8\" DYLINT",
+            ),
         ),
         (
-            "bare",
-            WHITAKER_OK.replace("DYLINT", "RUSTFLAGS=-Zthreads=8 DYLINT"),
+            "unassigned RUSTFLAGS",
+            WHITAKER_OK.replace("RUSTFLAGS=\"-D warnings\" DYLINT", "DYLINT"),
+        ),
+        (
+            "encoded flags",
+            WHITAKER_OK.replace("DYLINT", "CARGO_ENCODED_RUSTFLAGS=x DYLINT"),
         ),
         (
             "LLVM",
             WHITAKER_OK.replace("DYLINT", "CARGO_PROFILE_DEV_CODEGEN_BACKEND=llvm DYLINT"),
         ),
-        ("kept flags", WHITAKER_OK.replace("-u RUSTFLAGS ", "")),
+        (
+            "kept flags",
+            WHITAKER_OK.replace("-u CARGO_ENCODED_RUSTFLAGS ", ""),
+        ),
         (
             "no warning policy",
             WHITAKER_OK.replace("DYLINT_RUSTFLAGS=\"-D warnings\" ", ""),

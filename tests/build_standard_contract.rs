@@ -143,8 +143,13 @@ fn whitaker_route_problems(recipe: &str, host: &str) -> Problems {
         )];
     };
     let mut problems = Problems::new();
+    // Only the words before the program shape its environment: an assignment after `whitaker`
+    // is an argument to it, and a `-u RUSTFLAGS` anywhere in the prefix can undo the assignment.
+    let program = shell::executed_program(whitaker).unwrap_or_default();
+    let offset = (program.as_ptr() as usize).saturating_sub(whitaker.as_ptr() as usize);
+    let prefix = whitaker.get(..offset).unwrap_or(whitaker);
     for setting in WHITAKER_CLEARED {
-        if !whitaker.contains(&format!("-u {setting} ")) {
+        if !prefix.contains(&format!("-u {setting} ")) {
             problems.push(format!(
                 "Whitaker on {host} must remove inherited {setting}: {whitaker}"
             ));
@@ -152,29 +157,31 @@ fn whitaker_route_problems(recipe: &str, host: &str) -> Problems {
     }
     // `RUSTFLAGS` must be assigned exactly once, to the warning policy alone, so that no flag of the
     // configuration or the caller survives; any other flag source or backend assignment is refused.
-    let assigned = whitaker
+    let assigned = prefix
         .split_whitespace()
         .filter(|word| word.starts_with("RUSTFLAGS="))
         .count();
-    let value = whitaker
+    let value = prefix
         .split_once(" RUSTFLAGS=\"")
         .and_then(|(_, rest)| rest.split_once('"'))
         .map(|(value, _)| value);
-    if assigned != 1 || value != Some("-D warnings") {
+    let unset_later = prefix.contains("-u RUSTFLAGS ");
+    let policy_alone = assigned == 1 && value == Some("-D warnings");
+    if !policy_alone || unset_later {
         problems.push(format!(
             "Whitaker must assign RUSTFLAGS the warning policy alone: {whitaker}"
         ));
     }
-    let assigns_other = whitaker.split_whitespace().any(|word| {
+    let assigns_other = prefix.split_whitespace().any(|word| {
         word.starts_with("CARGO_ENCODED_RUSTFLAGS=")
             || (word.starts_with("CARGO_PROFILE_") && word.contains("_CODEGEN_BACKEND="))
     });
-    if assigns_other || whitaker.contains("=llvm") {
+    if assigns_other || prefix.contains("=llvm") {
         problems.push(format!(
             "Whitaker must not assign encoded flags or a backend: {whitaker}"
         ));
     }
-    if !whitaker.contains("DYLINT_RUSTFLAGS=\"-D warnings") {
+    if !prefix.contains("DYLINT_RUSTFLAGS=\"-D warnings") {
         problems.push(format!(
             "warnings must reach the check through Dylint's input: {whitaker}"
         ));
@@ -244,7 +251,7 @@ fn the_whitaker_and_lint_readers_refuse_each_broken_recipe() -> Result<(), Strin
         &format!("{WHITAKER_OK} --locked"),
         "Linux",
     ))?;
-    let broken: [(&str, String); 8] = [
+    let broken: [(&str, String); 10] = [
         (
             "echoed",
             WHITAKER_OK.replace("whitaker --all", "echo whitaker --all"),
@@ -275,6 +282,16 @@ fn the_whitaker_and_lint_readers_refuse_each_broken_recipe() -> Result<(), Strin
         (
             "kept flags",
             WHITAKER_OK.replace("-u CARGO_ENCODED_RUSTFLAGS ", ""),
+        ),
+        (
+            "assigned after the program",
+            WHITAKER_OK
+                .replace("RUSTFLAGS=\"-D warnings\" DYLINT", "DYLINT")
+                .replace("whitaker --all", "whitaker RUSTFLAGS=\"-D warnings\" --all"),
+        ),
+        (
+            "unset after assignment",
+            WHITAKER_OK.replace("-u LDFLAGS ", "-u LDFLAGS -u RUSTFLAGS "),
         ),
         (
             "no warning policy",

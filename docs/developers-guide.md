@@ -44,7 +44,8 @@ settings, assigns `RUSTFLAGS` the warning policy alone, and also passes the
 warning policy through `DYLINT_RUSTFLAGS`. Assigning `RUSTFLAGS` matters: with
 it unset, Cargo still reads the repository's `rustflags` and the route would
 carry the parallel frontend and the linker flag. The route selects no backend.
-`tests/build_standard_contract.rs` reads `make -n lint-whitaker` for that.
+`tests/build_standard_contract.rs` checks that `make lint` still runs Clippy
+and Whitaker; the Concordat rule is the check for the route's isolation.
 
 ### The development footprint
 

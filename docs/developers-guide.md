@@ -38,12 +38,14 @@ missing instead of skipping, so a missing tool cannot read as a pass.
 
 The Whitaker route is the third exclusion. `make lint` runs `lint-clippy`
 (which takes the standard's flags) and `lint-whitaker`, whose installer-managed
-toolchain must not inherit them: the route clears inherited `RUSTFLAGS`,
-encoded flags, backend, target and linker settings through
-`WHITAKER_CLEAN_ENV`, and passes the warning policy through `DYLINT_RUSTFLAGS`.
-It neither assigns `RUSTFLAGS` nor selects LLVM, so Cargo's repository defaults
-stay in force. `tests/build_standard_contract.rs` reads `make -n lint-whitaker`
-for exactly that.
+toolchain must not inherit them: the route, an `env` prefix on the Whitaker
+command, clears the inherited encoded flags, backend, target and linker
+settings, assigns `RUSTFLAGS` the warning policy alone, and also passes the
+warning policy through `DYLINT_RUSTFLAGS`. Assigning `RUSTFLAGS` matters: with
+it unset, Cargo still reads the repository's `rustflags` and the route would
+carry the parallel frontend and the linker flag. The route selects no backend.
+`tests/build_standard_contract.rs` checks that `make lint` still runs Clippy
+and Whitaker; the Concordat rule is the check for the route's isolation.
 
 ### The development footprint
 

@@ -66,20 +66,13 @@ lint-clippy: ## Run rustdoc and Clippy with warnings denied
 	RUSTFLAGS="$${RUSTFLAGS:+$$RUSTFLAGS }$(STANDARD_RUSTFLAGS)" $(CARGO) clippy $(CLIPPY_FLAGS)
 
 # Whitaker builds with its own installer-managed toolchain, which must not
-# inherit this repository's development flags, backend or linker, so the route
-# clears them and takes the repository's Cargo defaults instead. Dylint reads
-# the warning policy from DYLINT_RUSTFLAGS.
-WHITAKER_CLEAN_ENV = env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS \
-	-u CARGO_PROFILE_DEV_CODEGEN_BACKEND -u CARGO_BUILD_TARGET \
-	-u CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER \
-	-u CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS \
-	-u CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER \
-	-u CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS \
-	-u CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER \
-	-u CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS -u CFLAGS -u LDFLAGS
-
+# inherit this repository's development flags, backend or linker. The route
+# clears the encoded flags and every target-specific source, and assigns the
+# warning policy as its own `RUSTFLAGS`, so Cargo takes no flag from the
+# repository's configuration. Dylint reads the warning policy from
+# DYLINT_RUSTFLAGS.
 lint-whitaker: ## Run the Whitaker Dylint suite with clean driver inputs and warnings denied
-	$(WHITAKER_CLEAN_ENV) DYLINT_RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --all -- $(CARGO_FLAGS)
+	env -u CARGO_ENCODED_RUSTFLAGS -u CARGO_PROFILE_DEV_CODEGEN_BACKEND -u CARGO_BUILD_TARGET -u CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER -u CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS -u CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER -u CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS -u CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER -u CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS -u CFLAGS -u LDFLAGS RUSTFLAGS="$(RUST_FLAGS)" DYLINT_RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --all -- $(CARGO_FLAGS)
 
 fmt: ## Format Rust and Markdown sources
 	$(CARGO) fmt --all

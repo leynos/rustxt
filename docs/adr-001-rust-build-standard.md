@@ -58,3 +58,15 @@ the workflows, so a flag lost through a recipe or workflow edit fails there.
 - A change to a recipe or workflow step that assigns `RUSTFLAGS` must restate
   the flags, and the contract says which clause fails when it does not.
 - Revisit Cranelift when the toolchain or the failing tests change.
+
+## Addendum (2026-11-06)
+
+Whitaker is an exception to the flag standard above. It runs on its
+installer-managed toolchain, which cannot take the repository's frontend or
+linker flag, so its command clears the encoded flags (which Cargo reads in
+preference to `RUSTFLAGS`) and the target-specific sources, and assigns
+`RUSTFLAGS` the warning policy alone. An unset `RUSTFLAGS` would leave Cargo
+reading the configuration's `rustflags`, which is why the route assigns rather
+than clears it. Every other recipe still restates the standard flags. The
+contract reads only the words before the Whitaker program, so an assignment
+placed after it, or a later removal, does not count.

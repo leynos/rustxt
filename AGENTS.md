@@ -66,7 +66,7 @@
   the PR or execution record.
 - **Decision history:** Preserve accepted ADR decisions; record subsequent
   changes through the
-  [ADR amendment and supersession process](docs/documentation-style-guide.md#architectural-decision-records-adrs).
+  [ADR amendment and supersession rules](docs/documentation-style-guide.md#architectural-decision-records-adrs).
   Capture proof-driven API, representation, and invariant decisions in the
   design documentation.
 - **Completed execplans:** Completed execplans are historical documents and
@@ -217,10 +217,12 @@ project:
     validating Rust formatting and Markdown table and wrapping formatting
     without modifying files. The Markdown check covers the files Git tracks and
     the untracked files that Git does not ignore.
-  - `make lint` runs, in order:
-    - `cargo doc --no-deps`, with `RUSTDOCFLAGS` taken from `RUSTDOC_FLAGS`.
-      The Makefile does not define `RUSTDOC_FLAGS`, so no extra rustdoc flags
-      apply; the documentation lints in `Cargo.toml` still do.
+  - `make lint` runs the following steps. A serial run executes them in the
+    order listed; `make -j` may run the independent prerequisites in parallel.
+    - `cargo doc --no-deps`, with `RUSTDOCFLAGS` set from `RUSTDOC_FLAGS`.
+      That variable has no default in the Makefile, so no extra rustdoc flags
+      apply unless a caller sets it; the documentation lints in `Cargo.toml`
+      still apply.
     - `cargo clippy --all-targets --all-features -- -D warnings`, linting every
       target with all features enabled and denying all Clippy warnings.
     - The Whitaker Dylint suite, `whitaker --all -- --all-targets --all-features`,
@@ -246,14 +248,17 @@ project:
   - Use `make fmt` (`cargo fmt --all`, then `mdtablefix` and
     `markdownlint-cli2 --fix` on Markdown files) to apply formatting fixes
     reported by the formatter checks.
-- The Makefile's build standard applies to every recipe that sets `RUSTFLAGS`.
-  Assigning `RUSTFLAGS` replaces the `rustflags` in `.cargo/config.toml`, so
-  `make lint` and `make test` compose `-Zthreads=8` and, on Linux, the `mold`
-  linker flag onto any inherited value. Release builds assign `RUSTFLAGS`
-  without these flags, so they keep the platform linker. Development builds
-  inherit `incremental = false` and `debug = 0` from `Cargo.toml`. Cranelift is
-  not adopted for development builds; see
-  `docs/adrs/adr-0001-rust-build-standard.md`.
+- The development build standard (`-Zthreads=8`, and `-Clink-arg=-fuse-ld=mold`
+  on Linux) is composed onto any inherited `RUSTFLAGS` by the development
+  recipes: `make lint-clippy` (rustdoc and Clippy), `make test`, and the debug
+  build target (`make build`). Assigning `RUSTFLAGS` replaces the `rustflags` in
+  `.cargo/config.toml`, so the Makefile composes the flags itself. Two recipes
+  do not compose them. `make lint-whitaker` clears the inherited
+  build-environment flags and sets its own warning policy. The release build
+  target assigns `RUSTFLAGS` from its inherited value unchanged, so it adds
+  none of the standard flags. Development builds inherit `incremental = false`
+  and `debug = 0` from `Cargo.toml`. Cranelift is not adopted for development
+  builds; see `docs/adrs/adr-0001-rust-build-standard.md`.
 - Clippy warnings MUST be disallowed.
 - Fix any warnings emitted during tests in the code itself rather than
   silencing them.

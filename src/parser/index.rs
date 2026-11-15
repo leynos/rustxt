@@ -226,27 +226,36 @@ fn extract_description(after_term: &str) -> String {
 }
 
 fn extract_link_from_dt(dt_html: &str) -> Option<(String, String)> {
-    // Find href="..."
+    let href = find_href(dt_html)?;
+    let name = find_link_text(dt_html)?;
+    Some((clean_link_name(name), href.to_owned()))
+}
+
+/// Returns the value of the first `href="..."` attribute in `dt_html`, or
+/// `None` where there is no attribute or its closing quote is missing.
+fn find_href(dt_html: &str) -> Option<&str> {
     let href_start = dt_html.find(r#"href=""#)? + 6;
     let href_rest = dt_html.get(href_start..)?;
     let href_end = href_rest.find('"')?;
-    let href = href_rest.get(..href_end)?;
+    href_rest.get(..href_end)
+}
 
-    // Find the link text (between > and </a>)
-    // Look for the last > before </a>
+/// Returns the link text of `dt_html`: what lies between the last `>` before
+/// the final `</a>` and that `</a>`, or `None` where either marker is missing.
+fn find_link_text(dt_html: &str) -> Option<&str> {
     let anchor_end = dt_html.rfind("</a>")?;
     let before_anchor = dt_html.get(..anchor_end)?;
     let text_start = before_anchor.rfind('>')? + 1;
-    let name = before_anchor.get(text_start..)?;
+    before_anchor.get(text_start..)
+}
 
-    // Clean up the name (remove <wbr> tags, etc.)
-    let clean_name = name
-        .replace("<wbr>", "")
+/// Removes `<wbr>` tags from a link name and decodes the `&lt;`, `&gt;` and
+/// `&amp;` entities.
+fn clean_link_name(name: &str) -> String {
+    name.replace("<wbr>", "")
         .replace("&lt;", "<")
         .replace("&gt;", ">")
-        .replace("&amp;", "&");
-
-    Some((clean_name, href.to_owned()))
+        .replace("&amp;", "&")
 }
 
 fn strip_html_tags(html: &str) -> String {

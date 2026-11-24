@@ -47,6 +47,14 @@ carry the parallel frontend and the linker flag. The route selects no backend.
 `tests/build_standard_contract.rs` checks that `make lint` still runs Clippy
 and Whitaker; the Concordat rule is the check for the route's isolation.
 
+Cognitive complexity is not gated by Clippy. Clippy's `cognitive_complexity`
+scores code after macro expansion, so it counts branching a macro generated,
+and neither `Cargo.toml` nor `clippy.toml` enables it. Whitaker's experimental
+`macro_aware_cognitive_complexity` gates it at `max_complexity = 9`,
+CodeScene's ceiling. `dylint.toml` opts in with
+`[whitaker] experimental = ["macro_aware_cognitive_complexity"]`. Fix a finding
+by extracting named helpers, never by raising the threshold.
+
 ### The development footprint
 
 The Concordat `rust-dev-build-footprint` rule keeps default development builds

@@ -230,7 +230,7 @@ project:
     - The Whitaker Dylint suite, `whitaker --all -- --all-targets --all-features`,
       with `-D warnings` as its own `RUSTFLAGS` and `DYLINT_RUSTFLAGS`.
     - The `interrogate` docstring gate, which requires 100 per cent docstring
-      coverage of the Python under `tests/`.
+      coverage of the Python under `scripts/` and `tests/`.
 
     Clippy findings, Whitaker findings, and undocumented Python definitions fail
     the command.

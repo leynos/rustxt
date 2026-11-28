@@ -31,7 +31,9 @@
 - **Keep file size manageable.** No single code file may be longer than 400
   lines.  Long switch statements or dispatch tables should be broken up by
   feature and constituents colocated with targets. Large blocks of test data
-  should be moved to external data files.
+  should be moved to external data files. A file vendored byte for byte from an
+  upstream, such as `scripts/uv_gate.py`, is exempt, because splitting it would
+  break its canonical digest.
 
 ## Documentation maintenance
 
@@ -228,7 +230,7 @@ project:
     - The Whitaker Dylint suite, `whitaker --all -- --all-targets --all-features`,
       with `-D warnings` as its own `RUSTFLAGS` and `DYLINT_RUSTFLAGS`.
     - The `interrogate` docstring gate, which requires 100 per cent docstring
-      coverage of the Python under `tests/`.
+      coverage of the Python under `scripts/` and `tests/`.
 
     Clippy findings, Whitaker findings, and undocumented Python definitions fail
     the command.
